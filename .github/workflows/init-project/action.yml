@@ -1,10 +1,13 @@
-name: Init Project
-description: Initialize project from template
+name: Init Project Action
+description: "Initialize a repo created from the banking template"
 runs:
   using: "composite"
   steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
     - name: Make script executable
       run: chmod +x ${{ github.action_path }}/init.sh
 
-    - name: Run init.sh
-      run: ${{ github.action_path }}/init.sh "${{ github.event.repository.name }}"
+    - name: Run init script
+      run: ${{ github.action_path }}/init.sh "${{ github.repository }}"
