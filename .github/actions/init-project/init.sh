@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 
 FULL_REPO_NAME=$1
@@ -7,12 +6,12 @@ REPO_NAME=$(basename "$FULL_REPO_NAME")
 
 echo "📦 Repo Name: $REPO_NAME"
 
-# PascalCase class names
+# Convert repo name to PascalCase class name
 CLASS_BASE=$(echo "$REPO_NAME" | sed -E 's/(^|-)([a-z])/\U\2/g')
 MAIN_CLASS="${CLASS_BASE}Application"
 TEST_CLASS="${MAIN_CLASS}Tests"
 
-# Step 1: Locate the original files
+# Locate original template files
 MAIN_FILE=$(find src/main/java -type f -name '*TemplateApplication.java')
 TEST_FILE=$(find src/test/java -type f -name '*TemplateApplicationTests.java')
 
@@ -34,7 +33,7 @@ echo "🔧 New package name: $PACKAGE_NAME"
 echo "📂 Package path: $PACKAGE_PATH"
 echo "🧠 Old class: $OLD_CLASS_NAME, New class: $MAIN_CLASS"
 
-# Update POM
+# Update pom.xml
 echo "📝 Updating pom.xml..."
 sed -i "s|<artifactId>.*</artifactId>|<artifactId>${REPO_NAME}</artifactId>|" pom.xml
 sed -i "s|<name>.*</name>|<name>${REPO_NAME}</name>|" pom.xml
@@ -54,37 +53,40 @@ mv "$MAIN_FILE" "$NEW_MAIN_FILE"
 echo "🔀 Moving $TEST_FILE → $NEW_TEST_FILE"
 mv "$TEST_FILE" "$NEW_TEST_FILE"
 
-# Confirm they exist
 echo "🔍 Checking files after move..."
-if [[ ! -f "$NEW_MAIN_FILE" ]]; then
-  echo "❌ ERROR: Main file not found at $NEW_MAIN_FILE"
-  ls -R src/main/java || true
-  exit 2
-fi
+ls -lah "$NEW_MAIN_FILE" || { echo "❌ $NEW_MAIN_FILE not found after move"; find src/; exit 2; }
+ls -lah "$NEW_TEST_FILE" || { echo "❌ $NEW_TEST_FILE not found after move"; find src/; exit 2; }
 
-if [[ ! -f "$NEW_TEST_FILE" ]]; then
-  echo "❌ ERROR: Test file not found at $NEW_TEST_FILE"
-  ls -R src/test/java || true
-  exit 2
-fi
-
-# Clean old dirs
+# Clean up old dirs
 echo "🧹 Cleaning up old directories..."
 rm -rf "$MAIN_OLD_DIR"
 rm -rf "$TEST_OLD_DIR"
+
+# Debug listing before sed
+echo "📂 Final file structure before sed:"
+find src/ -type f
 
 # Update packages and class names
 echo "📝 Updating package and class names..."
 echo "📄 Main file: $NEW_MAIN_FILE"
 echo "📄 Test file: $NEW_TEST_FILE"
 
-# Package declaration
-sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_MAIN_FILE"
-sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_TEST_FILE"
+# Use sed only if files exist
+if [[ -f "$NEW_MAIN_FILE" ]]; then
+  sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_MAIN_FILE"
+  sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_MAIN_FILE"
+else
+  echo "❌ Main file not found for sed: $NEW_MAIN_FILE"
+  exit 2
+fi
 
-# Class name replacements
-sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_MAIN_FILE"
-sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_TEST_FILE"
-sed -i "s/$OLD_TEST_CLASS_NAME/$TEST_CLASS/g" "$NEW_TEST_FILE"
+if [[ -f "$NEW_TEST_FILE" ]]; then
+  sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_TEST_FILE"
+  sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_TEST_FILE"
+  sed -i "s/$OLD_TEST_CLASS_NAME/$TEST_CLASS/g" "$NEW_TEST_FILE"
+else
+  echo "❌ Test file not found for sed: $NEW_TEST_FILE"
+  exit 2
+fi
 
 echo "✅ Initialization complete for $REPO_NAME"
