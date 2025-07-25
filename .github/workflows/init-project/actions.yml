@@ -1,0 +1,10 @@
+name: Init Project
+description: Initialize project from template
+runs:
+  using: "composite"
+  steps:
+    - name: Make script executable
+      run: chmod +x ${{ github.action_path }}/init.sh
+
+    - name: Run init.sh
+      run: ${{ github.action_path }}/init.sh "${{ github.event.repository.name }}"
