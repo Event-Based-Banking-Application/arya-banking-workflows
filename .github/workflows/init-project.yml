@@ -1,0 +1,23 @@
+name: Initialize Project from Template
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/init-project.yml'
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set execution permission
+        run: chmod +x .github/scripts/init.sh
+
+      - name: Run Initialization Script
+        run: .github/scripts/init.sh
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
