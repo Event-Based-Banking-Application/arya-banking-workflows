@@ -26,11 +26,11 @@ if [[ -z "$TEST_FILE" ]]; then
   exit 1
 fi
 
-# Extract package base path (e.g., org/arya/banking/template)
+# Extract package base path
 MAIN_OLD_DIR=$(dirname "$MAIN_FILE")
 TEST_OLD_DIR=$(dirname "$TEST_FILE")
 
-# Extract package name from path
+# Extract package suffix from repo name
 PACKAGE_SUFFIX=$(echo "$REPO_NAME" | cut -d'-' -f3- | tr '-' '.')
 PACKAGE_NAME="org.arya.banking.${PACKAGE_SUFFIX}"
 PACKAGE_PATH="org/arya/banking/${PACKAGE_SUFFIX//./\/}"
@@ -44,24 +44,29 @@ sed -i "s|<artifactId>.*</artifactId>|<artifactId>${REPO_NAME}</artifactId>|" po
 sed -i "s|<name>.*</name>|<name>${REPO_NAME}</name>|" pom.xml
 sed -i "s|<description>.*</description>|<description>${REPO_NAME}</description>|" pom.xml
 
-# Move and rename main files
-echo "🚚 Refactoring source files..."
+# Move and rename files
 mkdir -p "src/main/java/$PACKAGE_PATH"
-mv "$MAIN_FILE" "src/main/java/$PACKAGE_PATH/${MAIN_CLASS}.java"
+NEW_MAIN_FILE="src/main/java/$PACKAGE_PATH/${MAIN_CLASS}.java"
+mv "$MAIN_FILE" "$NEW_MAIN_FILE"
 
 mkdir -p "src/test/java/$PACKAGE_PATH"
-mv "$TEST_FILE" "src/test/java/$PACKAGE_PATH/${TEST_CLASS}.java"
+NEW_TEST_FILE="src/test/java/$PACKAGE_PATH/${TEST_CLASS}.java"
+mv "$TEST_FILE" "$NEW_TEST_FILE"
 
-# Remove old empty directories
+# Cleanup old dirs
 rm -rf "$MAIN_OLD_DIR"
 rm -rf "$TEST_OLD_DIR"
 
-# Update package declarations
-sed -i "s|package .*;|package ${PACKAGE_NAME};|" "src/main/java/$PACKAGE_PATH/${MAIN_CLASS}.java"
-sed -i "s|package .*;|package ${PACKAGE_NAME};|" "src/test/java/$PACKAGE_PATH/${TEST_CLASS}.java"
+# Update package declaration
+sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_MAIN_FILE"
+sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_TEST_FILE"
 
-# Replace old class name inside files
-sed -i "s/AryaBankingTemplateApplication/${MAIN_CLASS}/g" "src/main/java/$PACKAGE_PATH/${MAIN_CLASS}.java"
-sed -i "s/AryaBankingTemplateApplication/${MAIN_CLASS}/g" "src/test/java/$PACKAGE_PATH/${TEST_CLASS}.java"
+# Replace old class name (dynamic detection)
+OLD_CLASS_NAME=$(basename "$MAIN_FILE" .java)
+OLD_TEST_CLASS_NAME=$(basename "$TEST_FILE" .java)
+
+sed -i "s/$OLD_CLASS_NAME/${MAIN_CLASS}/g" "$NEW_MAIN_FILE"
+sed -i "s/$OLD_CLASS_NAME/${MAIN_CLASS}/g" "$NEW_TEST_FILE"
+sed -i "s/$OLD_TEST_CLASS_NAME/${TEST_CLASS}/g" "$NEW_TEST_FILE"
 
 echo "✅ Initialization complete for $REPO_NAME"
