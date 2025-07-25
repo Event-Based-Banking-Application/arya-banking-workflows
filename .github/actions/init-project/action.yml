@@ -13,7 +13,7 @@ runs:
   using: "composite"
   steps:
     - name: Make init.sh executable
-      run: chmod +x .github/actions/init-project/init.sh
+      run: chmod +x ./init.sh
       shell: bash
 
     - name: Run init.sh with derived values
@@ -27,7 +27,7 @@ runs:
         echo "🔧 Package name: $PACKAGE_NAME"
         echo "🚀 Main class: $MAIN_CLASS_NAME"
 
-        .github/actions/init-project/init.sh "$REPO_NAME" "$PACKAGE_NAME" "$MAIN_CLASS_NAME"
+        ./init.sh "$REPO_NAME" "$PACKAGE_NAME" "$MAIN_CLASS_NAME"
       shell: bash
 
     - name: Setup Git and push
