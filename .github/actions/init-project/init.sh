@@ -1,92 +1,73 @@
 #!/bin/bash
+
 set -e
 
-FULL_REPO_NAME=$1
-REPO_NAME=$(basename "$FULL_REPO_NAME")
+REPO_NAME=$(basename `git rev-parse --show-toplevel`)
+PACKAGE_NAME="org.arya.banking.$REPO_NAME"
+PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
+OLD_PACKAGE_BASE="org.arya.banking"
+OLD_PACKAGE_PATH=$(echo $OLD_PACKAGE_BASE | tr '.' '/')
 
 echo "📦 Repo Name: $REPO_NAME"
-
-# Convert repo name to PascalCase class name
-CLASS_BASE=$(echo "$REPO_NAME" | sed -E 's/(^|-)([a-z])/\U\2/g')
-MAIN_CLASS="${CLASS_BASE}Application"
-TEST_CLASS="${MAIN_CLASS}Tests"
-
-# Locate original template files
-MAIN_FILE=$(find src/main/java -type f -name '*TemplateApplication.java')
-TEST_FILE=$(find src/test/java -type f -name '*TemplateApplicationTests.java')
-
-if [[ -z "$MAIN_FILE" || -z "$TEST_FILE" ]]; then
-  echo "❌ Template application files not found."
-  exit 1
-fi
-
-OLD_CLASS_NAME=$(basename "$MAIN_FILE" .java)
-OLD_TEST_CLASS_NAME=$(basename "$TEST_FILE" .java)
-MAIN_OLD_DIR=$(dirname "$MAIN_FILE")
-TEST_OLD_DIR=$(dirname "$TEST_FILE")
-
-PACKAGE_SUFFIX=$(echo "$REPO_NAME" | cut -d'-' -f3- | tr '-' '.')
-PACKAGE_NAME="org.arya.banking.${PACKAGE_SUFFIX}"
-PACKAGE_PATH="org/arya/banking/${PACKAGE_SUFFIX//./\/}"
-
 echo "🔧 New package name: $PACKAGE_NAME"
 echo "📂 Package path: $PACKAGE_PATH"
-echo "🧠 Old class: $OLD_CLASS_NAME, New class: $MAIN_CLASS"
 
-# Update pom.xml
+# Find the main class file (only one with @SpringBootApplication)
+MAIN_FILE_PATH=$(grep -rl '@SpringBootApplication' src/main/java)
+TEST_FILE_PATH=$(find src/test/java -name "*TemplateApplicationTests.java")
+
+# Extract old class name
+OLD_CLASS=$(basename "$MAIN_FILE_PATH" .java)
+NEW_CLASS="$(tr '[:lower:]' '[:upper:]' <<< ${REPO_NAME:0:1})${REPO_NAME:1}Application"
+
+# Determine test class names
+OLD_TEST_CLASS=$(basename "$TEST_FILE_PATH" .java)
+NEW_TEST_CLASS="${NEW_CLASS}Tests"
+
+echo "🧠 Old class: $OLD_CLASS, New class: $NEW_CLASS"
 echo "📝 Updating pom.xml..."
-sed -i "s|<artifactId>.*</artifactId>|<artifactId>${REPO_NAME}</artifactId>|" pom.xml
-sed -i "s|<name>.*</name>|<name>${REPO_NAME}</name>|" pom.xml
-sed -i "s|<description>.*</description>|<description>${REPO_NAME}</description>|" pom.xml
+sed -i "s|<artifactId>.*</artifactId>|<artifactId>$REPO_NAME</artifactId>|g" pom.xml
+sed -i "s|<name>.*</name>|<name>$REPO_NAME</name>|g" pom.xml
 
-# Create new directories
-mkdir -p "src/main/java/$PACKAGE_PATH"
-mkdir -p "src/test/java/$PACKAGE_PATH"
+# Move and rename main class
+NEW_MAIN_FILE="src/main/java/$PACKAGE_PATH/$NEW_CLASS.java"
+mkdir -p "$(dirname "$NEW_MAIN_FILE")"
+mv "$MAIN_FILE_PATH" "$NEW_MAIN_FILE"
 
-# Move files
-NEW_MAIN_FILE="src/main/java/$PACKAGE_PATH/${MAIN_CLASS}.java"
-NEW_TEST_FILE="src/test/java/$PACKAGE_PATH/${TEST_CLASS}.java"
+# Move and rename test class
+NEW_TEST_FILE="src/test/java/$PACKAGE_PATH/$NEW_TEST_CLASS.java"
+mkdir -p "$(dirname "$NEW_TEST_FILE")"
+mv "$TEST_FILE_PATH" "$NEW_TEST_FILE"
 
-echo "🔀 Moving $MAIN_FILE → $NEW_MAIN_FILE"
-mv "$MAIN_FILE" "$NEW_MAIN_FILE"
-
-echo "🔀 Moving $TEST_FILE → $NEW_TEST_FILE"
-mv "$TEST_FILE" "$NEW_TEST_FILE"
+# Old directory paths (for cleanup)
+MAIN_OLD_DIR=$(dirname "$MAIN_FILE_PATH" | sed "s|$OLD_PACKAGE_PATH.*||")$OLD_PACKAGE_PATH
+TEST_OLD_DIR=$(dirname "$TEST_FILE_PATH" | sed "s|$OLD_PACKAGE_PATH.*||")$OLD_PACKAGE_PATH
 
 echo "🔍 Checking files after move..."
-ls -lah "$NEW_MAIN_FILE" || { echo "❌ $NEW_MAIN_FILE not found after move"; find src/; exit 2; }
-ls -lah "$NEW_TEST_FILE" || { echo "❌ $NEW_TEST_FILE not found after move"; find src/; exit 2; }
+ls -l "$NEW_MAIN_FILE" "$NEW_TEST_FILE"
 
-# Clean up old dirs
 echo "🧹 Cleaning up old directories..."
-rm -rf "$MAIN_OLD_DIR"
-rm -rf "$TEST_OLD_DIR"
+# Prevent deleting folders that now contain the new files
+if [[ "$MAIN_OLD_DIR" != "$(dirname "$NEW_MAIN_FILE")" && "$MAIN_OLD_DIR" != "$(dirname "$(dirname "$NEW_MAIN_FILE")")" ]]; then
+  rm -rf "$MAIN_OLD_DIR"
+else
+  echo "⚠️ Skipping deletion of $MAIN_OLD_DIR to avoid removing new file"
+fi
 
-# Debug listing before sed
+if [[ "$TEST_OLD_DIR" != "$(dirname "$NEW_TEST_FILE")" && "$TEST_OLD_DIR" != "$(dirname "$(dirname "$NEW_TEST_FILE")")" ]]; then
+  rm -rf "$TEST_OLD_DIR"
+else
+  echo "⚠️ Skipping deletion of $TEST_OLD_DIR to avoid removing new test file"
+fi
+
 echo "📂 Final file structure before sed:"
-find src/ -type f
+find src -type f
 
-# Update packages and class names
 echo "📝 Updating package and class names..."
-echo "📄 Main file: $NEW_MAIN_FILE"
-echo "📄 Test file: $NEW_TEST_FILE"
+# Replace package and class names in moved files
+sed -i "s|package $OLD_PACKAGE_BASE.*|package $PACKAGE_NAME;|g" "$NEW_MAIN_FILE"
+sed -i "s|package $OLD_PACKAGE_BASE.*|package $PACKAGE_NAME;|g" "$NEW_TEST_FILE"
+sed -i "s|$OLD_CLASS|$NEW_CLASS|g" "$NEW_MAIN_FILE"
+sed -i "s|$OLD_CLASS|$NEW_CLASS|g" "$NEW_TEST_FILE"
 
-# Use sed only if files exist
-if [[ -f "$NEW_MAIN_FILE" ]]; then
-  sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_MAIN_FILE"
-  sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_MAIN_FILE"
-else
-  echo "❌ Main file not found for sed: $NEW_MAIN_FILE"
-  exit 2
-fi
-
-if [[ -f "$NEW_TEST_FILE" ]]; then
-  sed -i "s|package .*;|package ${PACKAGE_NAME};|" "$NEW_TEST_FILE"
-  sed -i "s/$OLD_CLASS_NAME/$MAIN_CLASS/g" "$NEW_TEST_FILE"
-  sed -i "s/$OLD_TEST_CLASS_NAME/$TEST_CLASS/g" "$NEW_TEST_FILE"
-else
-  echo "❌ Test file not found for sed: $NEW_TEST_FILE"
-  exit 2
-fi
-
-echo "✅ Initialization complete for $REPO_NAME"
+echo "✅ Init complete!"
