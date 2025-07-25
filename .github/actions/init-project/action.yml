@@ -13,7 +13,7 @@ runs:
   using: "composite"
   steps:
     - name: Make init.sh executable
-      run: chmod +x .github/scripts/init.sh
+      run: chmod +x .github/actions/init-project/init.sh
       shell: bash
 
     - name: Run init.sh with derived values
