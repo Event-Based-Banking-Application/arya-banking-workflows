@@ -1,73 +1,89 @@
 #!/bin/bash
-
 set -e
 
-REPO_NAME=$(basename `git rev-parse --show-toplevel`)
-PACKAGE_NAME="org.arya.banking.$REPO_NAME"
-PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
-OLD_PACKAGE_BASE="org.arya.banking"
-OLD_PACKAGE_PATH=$(echo $OLD_PACKAGE_BASE | tr '.' '/')
+echo "🔰 Starting repo initialization script..."
 
-echo "📦 Repo Name: $REPO_NAME"
-echo "🔧 New package name: $PACKAGE_NAME"
-echo "📂 Package path: $PACKAGE_PATH"
+repo_name="$1"
+package_name="$2"
+main_class_name="$3"
 
-# Find the main class file (only one with @SpringBootApplication)
-MAIN_FILE_PATH=$(grep -rl '@SpringBootApplication' src/main/java)
-TEST_FILE_PATH=$(find src/test/java -name "*TemplateApplicationTests.java")
+echo "📦 Repo Name: $repo_name"
+echo "🔧 New package name: $package_name"
+package_path=$(echo "$package_name" | tr '.' '/')
+echo "📂 Package path: $package_path"
 
-# Extract old class name
-OLD_CLASS=$(basename "$MAIN_FILE_PATH" .java)
-NEW_CLASS="$(tr '[:lower:]' '[:upper:]' <<< ${REPO_NAME:0:1})${REPO_NAME:1}Application"
+old_class="AryaBankingTemplateApplication"
+new_class="${main_class_name}Application"
+main_file="src/main/java/$package_path/$new_class.java"
+test_file="src/test/java/$package_path/${new_class}Tests.java"
 
-# Determine test class names
-OLD_TEST_CLASS=$(basename "$TEST_FILE_PATH" .java)
-NEW_TEST_CLASS="${NEW_CLASS}Tests"
-
-echo "🧠 Old class: $OLD_CLASS, New class: $NEW_CLASS"
+# Update pom.xml artifactId
 echo "📝 Updating pom.xml..."
-sed -i "s|<artifactId>.*</artifactId>|<artifactId>$REPO_NAME</artifactId>|g" pom.xml
-sed -i "s|<name>.*</name>|<name>$REPO_NAME</name>|g" pom.xml
+sed -i "s/<artifactId>.*</<artifactId>${repo_name}</" pom.xml || true
 
-# Move and rename main class
-NEW_MAIN_FILE="src/main/java/$PACKAGE_PATH/$NEW_CLASS.java"
-mkdir -p "$(dirname "$NEW_MAIN_FILE")"
-mv "$MAIN_FILE_PATH" "$NEW_MAIN_FILE"
+# Move files
+src_main_class=$(find src/main/java -name "${old_class}.java")
+src_test_class=$(find src/test/java -name "${old_class}Tests.java")
 
-# Move and rename test class
-NEW_TEST_FILE="src/test/java/$PACKAGE_PATH/$NEW_TEST_CLASS.java"
-mkdir -p "$(dirname "$NEW_TEST_FILE")"
-mv "$TEST_FILE_PATH" "$NEW_TEST_FILE"
+echo "🔍 Checking file to move:"
+echo "Main: $src_main_class"
+echo "Test: $src_test_class"
 
-# Old directory paths (for cleanup)
-MAIN_OLD_DIR=$(dirname "$MAIN_FILE_PATH" | sed "s|$OLD_PACKAGE_PATH.*||")$OLD_PACKAGE_PATH
-TEST_OLD_DIR=$(dirname "$TEST_FILE_PATH" | sed "s|$OLD_PACKAGE_PATH.*||")$OLD_PACKAGE_PATH
+mkdir -p "src/main/java/$package_path"
+mkdir -p "src/test/java/$package_path"
 
-echo "🔍 Checking files after move..."
-ls -l "$NEW_MAIN_FILE" "$NEW_TEST_FILE"
-
-echo "🧹 Cleaning up old directories..."
-# Prevent deleting folders that now contain the new files
-if [[ "$MAIN_OLD_DIR" != "$(dirname "$NEW_MAIN_FILE")" && "$MAIN_OLD_DIR" != "$(dirname "$(dirname "$NEW_MAIN_FILE")")" ]]; then
-  rm -rf "$MAIN_OLD_DIR"
+if [[ -f "$src_main_class" ]]; then
+  mv "$src_main_class" "$main_file"
+  echo "✅ Moved main class to $main_file"
 else
-  echo "⚠️ Skipping deletion of $MAIN_OLD_DIR to avoid removing new file"
+  echo "⚠️ Main class not found"
 fi
 
-if [[ "$TEST_OLD_DIR" != "$(dirname "$NEW_TEST_FILE")" && "$TEST_OLD_DIR" != "$(dirname "$(dirname "$NEW_TEST_FILE")")" ]]; then
-  rm -rf "$TEST_OLD_DIR"
+if [[ -f "$src_test_class" ]]; then
+  mv "$src_test_class" "$test_file"
+  echo "✅ Moved test class to $test_file"
 else
-  echo "⚠️ Skipping deletion of $TEST_OLD_DIR to avoid removing new test file"
+  echo "⚠️ Test class not found"
 fi
 
-echo "📂 Final file structure before sed:"
-find src -type f
+echo "🧹 Cleaning up old dirs..."
+find src/main/java -type d -empty -delete
+find src/test/java -type d -empty -delete
 
-echo "📝 Updating package and class names..."
-# Replace package and class names in moved files
-sed -i "s|package $OLD_PACKAGE_BASE.*|package $PACKAGE_NAME;|g" "$NEW_MAIN_FILE"
-sed -i "s|package $OLD_PACKAGE_BASE.*|package $PACKAGE_NAME;|g" "$NEW_TEST_FILE"
-sed -i "s|$OLD_CLASS|$NEW_CLASS|g" "$NEW_MAIN_FILE"
-sed -i "s|$OLD_CLASS|$NEW_CLASS|g" "$NEW_TEST_FILE"
+echo "📄 Verifying final structure:"
+ls -R src/main/java || true
+ls -R src/test/java || true
 
-echo "✅ Init complete!"
+# Update package and class names
+echo "📝 Updating package/class in files..."
+
+if [[ -f "$main_file" ]]; then
+  sed -i "s/package .*/package $package_name;/" "$main_file"
+  sed -i "s/class $old_class/class $new_class/" "$main_file"
+else
+  echo "❌ Skipping main file update - not found: $main_file"
+fi
+
+if [[ -f "$test_file" ]]; then
+  sed -i "s/package .*/package $package_name;/" "$test_file"
+  sed -i "s/class ${old_class}Tests/class ${new_class}Tests/" "$test_file"
+else
+  echo "❌ Skipping test file update - not found: $test_file"
+fi
+
+echo "🧪 Git status after all changes:"
+git status
+
+echo "📄 Git diff preview:"
+git diff
+
+# Force file change to ensure commit happens
+echo "Template initialized on $(date)" > .template-init.log
+
+# Stage, commit, and push
+echo "💾 Committing changes..."
+git add .
+git commit -m "chore: apply template initialization" || echo "⚠️ Nothing to commit."
+git push origin HEAD
+
+echo "✅ Initialization script completed!"
