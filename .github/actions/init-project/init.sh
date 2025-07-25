@@ -1,89 +1,46 @@
 #!/bin/bash
+
 set -e
 
-echo "🔰 Starting repo initialization script..."
+REPO_NAME="$1"           # e.g., demo-service
+PACKAGE_NAME="$2"        # e.g., org.arya.banking.demo.service
+CLASS_NAME="$3"          # e.g., DemoService
 
-repo_name="$1"
-package_name="$2"
-main_class_name="$3"
+OLD_PACKAGE="org.arya.banking"
+OLD_PACKAGE_PATH="org/arya/banking"
+OLD_CLASS="AryaBankingTemplateApplication"
 
-echo "📦 Repo Name: $repo_name"
-echo "🔧 New package name: $package_name"
-package_path=$(echo "$package_name" | tr '.' '/')
-echo "📂 Package path: $package_path"
+PACKAGE_PATH="${PACKAGE_NAME//./\/}"
 
-old_class="AryaBankingTemplateApplication"
-new_class="${main_class_name}Application"
-main_file="src/main/java/$package_path/$new_class.java"
-test_file="src/test/java/$package_path/${new_class}Tests.java"
+echo "📦 Repo Name: $REPO_NAME"
+echo "🔧 New package name: $PACKAGE_NAME"
+echo "📂 Package path: $PACKAGE_PATH"
+echo "🧠 Old class: $OLD_CLASS → ${CLASS_NAME}Application"
 
-# Update pom.xml artifactId
+# 1. Update pom.xml
 echo "📝 Updating pom.xml..."
-sed -i "s/<artifactId>.*</<artifactId>${repo_name}</" pom.xml || true
+sed -i "s|<artifactId>.*</artifactId>|<artifactId>$REPO_NAME</artifactId>|" pom.xml
 
-# Move files
-src_main_class=$(find src/main/java -name "${old_class}.java")
-src_test_class=$(find src/test/java -name "${old_class}Tests.java")
+# 2. Create new package directories
+mkdir -p src/main/java/"$PACKAGE_PATH"
+mkdir -p src/test/java/"$PACKAGE_PATH"
 
-echo "🔍 Checking file to move:"
-echo "Main: $src_main_class"
-echo "Test: $src_test_class"
+# 3. Move and rename classes
+echo "🔀 Moving and renaming main/test classes..."
+mv src/main/java/${OLD_PACKAGE_PATH}/${OLD_CLASS}.java src/main/java/${PACKAGE_PATH}/${CLASS_NAME}Application.java
+mv src/test/java/${OLD_PACKAGE_PATH}/${OLD_CLASS}Tests.java src/test/java/${PACKAGE_PATH}/${CLASS_NAME}ApplicationTests.java
 
-mkdir -p "src/main/java/$package_path"
-mkdir -p "src/test/java/$package_path"
+# 4. Update package declarations and class names
+echo "📝 Updating package declarations and class names..."
+sed -i "s|package ${OLD_PACKAGE};|package ${PACKAGE_NAME};|" src/main/java/${PACKAGE_PATH}/${CLASS_NAME}Application.java
+sed -i "s|package ${OLD_PACKAGE};|package ${PACKAGE_NAME};|" src/test/java/${PACKAGE_PATH}/${CLASS_NAME}ApplicationTests.java
 
-if [[ -f "$src_main_class" ]]; then
-  mv "$src_main_class" "$main_file"
-  echo "✅ Moved main class to $main_file"
-else
-  echo "⚠️ Main class not found"
-fi
+sed -i "s|${OLD_CLASS}|${CLASS_NAME}Application|g" src/main/java/${PACKAGE_PATH}/${CLASS_NAME}Application.java
+sed -i "s|${OLD_CLASS}|${CLASS_NAME}Application|g" src/test/java/${PACKAGE_PATH}/${CLASS_NAME}ApplicationTests.java
 
-if [[ -f "$src_test_class" ]]; then
-  mv "$src_test_class" "$test_file"
-  echo "✅ Moved test class to $test_file"
-else
-  echo "⚠️ Test class not found"
-fi
+# 5. Cleanup old package
+echo "🧹 Cleaning up old package..."
+rm -rf src/main/java/${OLD_PACKAGE_PATH}
+rm -rf src/test/java/${OLD_PACKAGE_PATH}
 
-echo "🧹 Cleaning up old dirs..."
-find src/main/java -type d -empty -delete
-find src/test/java -type d -empty -delete
-
-echo "📄 Verifying final structure:"
-ls -R src/main/java || true
-ls -R src/test/java || true
-
-# Update package and class names
-echo "📝 Updating package/class in files..."
-
-if [[ -f "$main_file" ]]; then
-  sed -i "s/package .*/package $package_name;/" "$main_file"
-  sed -i "s/class $old_class/class $new_class/" "$main_file"
-else
-  echo "❌ Skipping main file update - not found: $main_file"
-fi
-
-if [[ -f "$test_file" ]]; then
-  sed -i "s/package .*/package $package_name;/" "$test_file"
-  sed -i "s/class ${old_class}Tests/class ${new_class}Tests/" "$test_file"
-else
-  echo "❌ Skipping test file update - not found: $test_file"
-fi
-
-echo "🧪 Git status after all changes:"
-git status
-
-echo "📄 Git diff preview:"
-git diff
-
-# Force file change to ensure commit happens
-echo "Template initialized on $(date)" > .template-init.log
-
-# Stage, commit, and push
-echo "💾 Committing changes..."
-git add .
-git commit -m "chore: apply template initialization" || echo "⚠️ Nothing to commit."
-git push origin HEAD
-
-echo "✅ Initialization script completed!"
+echo "✅ Initialization complete."
