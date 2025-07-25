@@ -24,30 +24,38 @@ sed -i "s|<artifactId>.*</artifactId>|<artifactId>${REPO_NAME}</artifactId>|" po
 sed -i "s|<name>.*</name>|<name>${REPO_NAME}</name>|" pom.xml
 sed -i "s|<description>.*</description>|<description>${REPO_NAME}</description>|" pom.xml
 
-# Step 2: Rename Java main class and package
-echo "🚚 Refactoring Java source files..."
-
+# Step 2: Dynamically detect current main and test class locations
 SRC_DIR="src/main/java"
 TEST_DIR="src/test/java"
 
-OLD_PACKAGE_PATH=$(find "$SRC_DIR" -type f -name "*TemplateApplication.java" | head -n 1 | sed -E "s|/$MAIN_CLASS\.java||;s|/[^/]+$||")
+MAIN_JAVA=$(find "$SRC_DIR" -name '*TemplateApplication.java' | head -n 1)
+TEST_JAVA=$(find "$TEST_DIR" -name '*TemplateApplicationTests.java' | head -n 1)
 
-OLD_PACKAGE_DIR=$(dirname "$(find "$SRC_DIR" -name '*TemplateApplication.java')")
-OLD_TEST_PACKAGE_DIR=$(dirname "$(find "$TEST_DIR" -name '*TemplateApplicationTests.java')")
+if [[ ! -f "$MAIN_JAVA" ]]; then
+  echo "❌ Error: Could not find a file matching *TemplateApplication.java in $SRC_DIR"
+  exit 1
+fi
 
-# Move main source files
+if [[ ! -f "$TEST_JAVA" ]]; then
+  echo "❌ Error: Could not find a file matching *TemplateApplicationTests.java in $TEST_DIR"
+  exit 1
+fi
+
+OLD_PACKAGE_DIR=$(dirname "$MAIN_JAVA")
+OLD_TEST_PACKAGE_DIR=$(dirname "$TEST_JAVA")
+
+# Move and rename source files
+echo "🚚 Refactoring Java source files..."
 mkdir -p "$SRC_DIR/$PACKAGE_PATH"
-find "$OLD_PACKAGE_DIR" -name "*.java" -exec mv {} "$SRC_DIR/$PACKAGE_PATH" \;
-
-# Move test files
 mkdir -p "$TEST_DIR/$PACKAGE_PATH"
-find "$OLD_TEST_PACKAGE_DIR" -name "*.java" -exec mv {} "$TEST_DIR/$PACKAGE_PATH" \;
 
-# Cleanup old dirs
+mv "$OLD_PACKAGE_DIR"/*.java "$SRC_DIR/$PACKAGE_PATH/"
+mv "$OLD_TEST_PACKAGE_DIR"/*.java "$TEST_DIR/$PACKAGE_PATH/"
+
 rm -rf "$OLD_PACKAGE_DIR"
 rm -rf "$OLD_TEST_PACKAGE_DIR"
 
-# Rename main class
+# Rename class files
 mv "$SRC_DIR/$PACKAGE_PATH/"*TemplateApplication.java "$SRC_DIR/$PACKAGE_PATH/${MAIN_CLASS}.java"
 mv "$TEST_DIR/$PACKAGE_PATH/"*TemplateApplicationTests.java "$TEST_DIR/$PACKAGE_PATH/${MAIN_CLASS}Tests.java"
 
