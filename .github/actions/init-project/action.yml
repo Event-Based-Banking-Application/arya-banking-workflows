@@ -17,3 +17,4 @@ runs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git remote set-url origin https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.repository }}
+      shell: bash
