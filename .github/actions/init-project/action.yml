@@ -27,7 +27,7 @@ runs:
         echo "🔧 Package name: $PACKAGE_NAME"
         echo "🚀 Main class: $MAIN_CLASS_NAME"
 
-        .github/scripts/init.sh "$REPO_NAME" "$PACKAGE_NAME" "$MAIN_CLASS_NAME"
+        .github/actions/init-project/init.sh "$REPO_NAME" "$PACKAGE_NAME" "$MAIN_CLASS_NAME"
       shell: bash
 
     - name: Setup Git and push
