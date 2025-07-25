@@ -1,14 +1,35 @@
-name: "Init Project"
-description: "Initializes repo after being created from a template"
+name: 🚀 Initialize Repo from Template
 
-runs:
-  using: "composite"
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+on:
+  push:
+    paths:
+      - '.github/init/init.sh'  # Trigger when init script is updated
+  workflow_dispatch:            # Or trigger manually
 
-    - name: Run init script
-      shell: bash  # ✅ required in composite actions
-      run: |
-        chmod +x ${{ github.action_path }}/init.sh
-        ${{ github.action_path }}/init.sh "${{ github.repository }}"
+jobs:
+  init:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}  # Required to push changes
+
+      - name: 🧪 Make script executable
+        run: chmod +x .github/init/init.sh
+
+      - name: 🚀 Run init script
+        run: .github/init/init.sh ${{ github.repository }}
+
+      - name: 🧾 Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Don't fail if no changes
+          git diff --quiet && echo "🟢 No changes to commit." && exit 0
+          
+          git add .
+          git commit -m "🔧 Init project structure"
+          git push origin HEAD
