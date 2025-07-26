@@ -1,0 +1,33 @@
+name: Build and Push Kafka Setup to GHCR
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Kafka Image
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/arya-banking-kafka:latest ./kafka
+
+      - name: Build Schema Registry Image
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/arya-banking-schema-registry:latest ./schema-registry
+
+      - name: Push Kafka and Schema Registry Images
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/arya-banking-kafka:latest
+          docker push ghcr.io/${{ github.repository_owner }}/arya-banking-schema-registry:latest

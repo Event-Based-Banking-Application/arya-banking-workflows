@@ -1,0 +1,7 @@
+FROM confluentinc/cp-schema-registry:latest
+
+ENV SCHEMA_REGISTRY_HOST_NAME=schema-registry \
+    SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=PLAINTEXT://kafka:29092 \
+    SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8081
+
+VOLUME /var/lib/schema-registry/data
