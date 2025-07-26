@@ -21,13 +21,16 @@ jobs:
 
       - name: Build Kafka Image
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/arya-banking-kafka:latest ./kafka
+          owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t ghcr.io/$owner_lc/arya-banking-kafka:latest ./kafka
 
       - name: Build Schema Registry Image
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/arya-banking-schema-registry:latest ./schema-registry
+          owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t ghcr.io/$owner_lc/arya-banking-schema-registry:latest ./schema-registry
 
       - name: Push Kafka and Schema Registry Images
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/arya-banking-kafka:latest
-          docker push ghcr.io/${{ github.repository_owner }}/arya-banking-schema-registry:latest
+          owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker push ghcr.io/$owner_lc/arya-banking-kafka:latest
+          docker push ghcr.io/$owner_lc/arya-banking-schema-registry:latest
