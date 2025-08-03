@@ -1,0 +1,206 @@
+name: Bulk Create Issues Grouped by Services
+
+on:
+  workflow_call:
+    inputs:
+      target_org:
+        description: 'Target organization name (auto-detected if empty)'
+        required: false
+        type: string
+        default: ''
+      target_repo:
+        description: 'Target repository name (auto-detected if empty)'
+        required: false
+        type: string
+        default: ''
+      issues_json_path:
+        description: 'Path to the issues JSON file'
+        required: false
+        type: string
+        default: '.github/issues.json'
+    secrets:
+      github_token:
+        description: 'GitHub token with repo access'
+        required: true
+    outputs:
+      services_count:
+        description: 'Number of services processed'
+        value: ${{ jobs.create-issues-grouped.outputs.services_count }}
+      issues_created:
+        description: 'Number of issues created'
+        value: ${{ jobs.create-issues-grouped.outputs.issues_created }}
+      milestones_created:
+        description: 'Number of milestones created'
+        value: ${{ jobs.create-issues-grouped.outputs.milestones_created }}
+
+jobs:
+  create-issues-grouped:
+    runs-on: ubuntu-latest
+    outputs:
+      services_count: ${{ steps.create-issues.outputs.services_count }}
+      issues_created: ${{ steps.create-issues.outputs.issues_created }}
+      milestones_created: ${{ steps.create-issues.outputs.milestones_created }}
+    
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: pip install requests
+
+    - name: Create milestones and grouped issues
+      id: create-issues
+      env:
+        GITHUB_TOKEN: ${{ secrets.github_token }}
+        REPO_OWNER: ${{ inputs.target_org || github.repository_owner }}
+        REPO_NAME: ${{ inputs.target_repo || github.event.repository.name }}
+        ISSUES_JSON_PATH: ${{ inputs.issues_json_path }}
+      run: |
+        import os
+        import json
+        import requests
+
+        GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+        REPO_OWNER = os.environ['REPO_OWNER']
+        REPO_NAME = os.environ['REPO_NAME']
+        ISSUES_JSON_PATH = os.environ['ISSUES_JSON_PATH']
+
+        print(f"🚀 Auto-detected Configuration:")
+        print(f"  - Target: {REPO_OWNER}/{REPO_NAME}")
+        print(f"  - Issues JSON: {ISSUES_JSON_PATH}")
+
+        # Check if issues file exists
+        if not os.path.exists(ISSUES_JSON_PATH):
+            print(f"❌ Error: Issues JSON file not found at {ISSUES_JSON_PATH}")
+            print(f"💡 Tip: Make sure your issues.json file exists in the repository")
+            exit(1)
+
+        with open(ISSUES_JSON_PATH, 'r') as f:
+            data = json.load(f)
+
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github+json'
+        }
+
+        # Validate target repository exists
+        repo_url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}'
+        repo_response = requests.get(repo_url, headers=headers)
+        if repo_response.status_code != 200:
+            print(f"❌ Error: Repository {REPO_OWNER}/{REPO_NAME} not found or not accessible")
+            print(f"💡 Check repository permissions and token access")
+            exit(1)
+
+        print(f"✅ Repository validated: {REPO_OWNER}/{REPO_NAME}")
+
+        milestones_created_count = 0
+        issues_created_count = 0
+
+        # Create milestones for each service
+        milestones = {}
+        print(f"\n🎯 Processing {len(data)} services...")
+        
+        for service in data:
+            service_name = service['service']
+            milestone_title = f"🎯 {service_name}"
+            
+            # Check if milestone already exists
+            milestones_url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/milestones'
+            milestones_response = requests.get(milestones_url, headers=headers)
+            
+            existing_milestone = None
+            if milestones_response.status_code == 200:
+                for milestone in milestones_response.json():
+                    if milestone['title'] == milestone_title:
+                        existing_milestone = milestone
+                        break
+            
+            if existing_milestone:
+                milestone_number = existing_milestone['number']
+                print(f"📌 Using existing milestone: {milestone_title}")
+            else:
+                # Create new milestone (no due date)
+                milestone_payload = {
+                    'title': milestone_title,
+                    'description': f"All tasks and features for {service_name}"
+                }
+                
+                milestone_response = requests.post(milestones_url, headers=headers, json=milestone_payload)
+                if milestone_response.status_code == 201:
+                    milestone_number = milestone_response.json()['number']
+                    milestones_created_count += 1
+                    print(f"✅ Created milestone: {milestone_title}")
+                else:
+                    print(f"❌ Failed to create milestone: {milestone_title} -- {milestone_response.status_code}")
+                    milestone_number = None
+            
+            milestones[service_name] = milestone_number
+
+        # Create issues grouped by service
+        for service in data:
+            service_name = service['service']
+            milestone_number = milestones.get(service_name)
+            
+            print(f"\n📋 Processing {service_name} ({len(service['issues'])} issues)...")
+            
+            for i, issue in enumerate(service['issues'], 1):
+                title = f"[{service_name}] {issue['task']}"
+                
+                # Enhanced body with proper string formatting
+                body = f"""## 🎯 Service: {service_name}
+
+        **Task #{i} of {len(service['issues'])}**
+
+        ### Description
+        {issue['description']}
+
+        ### Labels
+        {', '.join(issue['labels'])}
+
+        ---
+        *This issue is part of the {service_name} implementation.*
+        *Auto-created from {REPO_OWNER}/{REPO_NAME}*"""
+                
+                labels = issue['labels'] + [service_name.lower().replace(' ', '-').replace('/', '-')]
+
+                payload = {
+                    'title': title,
+                    'body': body,
+                    'labels': labels
+                }
+                
+                # Add milestone if it exists
+                if milestone_number:
+                    payload['milestone'] = milestone_number
+
+                url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues'
+                response = requests.post(url, headers=headers, json=payload)
+                
+                if response.status_code == 201:
+                    issue_number = response.json()['number']
+                    issues_created_count += 1
+                    print(f"  ✅ Created: #{issue_number} - {issue['task'][:50]}...")
+                else:
+                    print(f"  ❌ Failed: {issue['task'][:50]}... -- {response.status_code}")
+                    if response.text:
+                        print(f"      Error: {response.text}")
+
+        print(f"\n🎉 Bulk issue creation completed!")
+        print(f"📊 Final Summary:")
+        print(f"  - Target Repository: {REPO_OWNER}/{REPO_NAME}")
+        print(f"  - Services Processed: {len(data)}")
+        print(f"  - Total Issues Created: {issues_created_count}")
+        print(f"  - Milestones Created: {milestones_created_count}")
+        
+        # Set outputs for calling workflows
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"services_count={len(data)}\n")
+            f.write(f"issues_created={issues_created_count}\n")
+            f.write(f"milestones_created={milestones_created_count}\n")
+
+      shell: python
