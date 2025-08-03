@@ -12,7 +12,6 @@ on:
       GH_PAT:
         required: true
 
-
 jobs:
   sonarcloud:
     name: SonarCloud
@@ -26,7 +25,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # Adjust if using another version
+          java-version: '17'
 
       - name: Cache Maven packages
         uses: actions/cache@v4
@@ -35,17 +34,21 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-maven
 
+      - name: Lint Check (Optional)
+        run: mvn checkstyle:check pmd:check spotbugs:check
+        continue-on-error: false
+
       - name: Build and Run Tests
         run: mvn --settings settings.xml clean verify
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
-          GITHUB_ACTOR: ${{ github.actor }}  # Optional, if needed in settings.xml
+          GITHUB_ACTOR: ${{ github.actor }}
 
       - name: SonarCloud Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn verify sonar:sonar \
+          mvn sonar:sonar \
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }} \
             -Dsonar.organization=${{ secrets.SONAR_ORG }} \
             -Dsonar.host.url=https://sonarcloud.io \
