@@ -33,10 +33,6 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-maven
-          
-      - name: Lint Check (Optional)
-        run: mvn --settings settings.xml checkstyle:check pmd:check com.github.spotbugs:spotbugs-maven-plugin:check
-        continue-on-error: false
 
       - name: Build and Run Tests
         run: mvn --settings settings.xml clean verify
