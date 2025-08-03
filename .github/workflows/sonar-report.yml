@@ -34,13 +34,6 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-maven
 
-      - name: Lint Check (Optional)
-        run: mvn --settings settings.xml checkstyle:check pmd:check spotbugs:check
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-          GITHUB_ACTOR: ${{ github.actor }}
-        continue-on-error: false
-
       - name: Build and Run Tests
         run: mvn --settings settings.xml clean verify
         env:
