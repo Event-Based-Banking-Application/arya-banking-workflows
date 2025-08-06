@@ -29,8 +29,14 @@ jobs:
           owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker build -t ghcr.io/$owner_lc/arya-banking-schema-registry:latest ./schema-registry
 
+      - name: Build keycloak Image
+        run: |
+          owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t ghcr.io/$owner_lc/arya-banking-keycloak:latest ./schema-registry
+
       - name: Push Kafka and Schema Registry Images
         run: |
           owner_lc=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker push ghcr.io/$owner_lc/arya-banking-kafka:latest
           docker push ghcr.io/$owner_lc/arya-banking-schema-registry:latest
+          docker push ghcr.io/$owner_lc/arya-banking-keycloak:latest
