@@ -1,4 +1,4 @@
-FROM confluentinc/cp-schema-registry:latest
+FROM confluentinc/cp-schema-registry:1.0.0
 
 # Banking application metadata
 LABEL maintainer="banking-dev-team"
